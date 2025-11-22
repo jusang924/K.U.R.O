@@ -9,9 +9,10 @@ namespace Kuros.Core
         [ExportCategory("Stats")]
         [Export] public float Speed = 300.0f;
         [Export] public float AttackDamage = 25.0f;
-        [Export] public float AttackRange = 100.0f;
+        // [Export] public float AttackRange = 100.0f; // Removed: Deprecated, rely on AttackArea logic
         [Export] public float AttackCooldown = 0.5f;
         [Export] public int MaxHealth = 100;
+        [Export] public bool FaceLeftByDefault = false;
         
         [ExportCategory("Components")]
         [Export] public StateMachine StateMachine { get; private set; } = null!;
@@ -102,21 +103,31 @@ namespace Kuros.Core
             }
         }
 
-        public void FlipFacing(bool faceRight)
+        public virtual void FlipFacing(bool faceRight)
         {
             if (FacingRight == faceRight) return;
             
             FacingRight = faceRight;
             
+            // Calculate the correct X scale sign based on direction and default facing
+            // If faceRight is requested:
+            //   - Default Right: Scale should be positive
+            //   - Default Left: Scale should be negative
+            float sign = faceRight ? 1.0f : -1.0f;
+            if (FaceLeftByDefault) sign *= -1.0f;
+            
             if (_spineCharacter != null)
             {
                 var scale = _spineCharacter.Scale;
                 float absX = Mathf.Abs(scale.X);
-                _spineCharacter.Scale = new Vector2(faceRight ? absX : -absX, scale.Y);
+                _spineCharacter.Scale = new Vector2(absX * sign, scale.Y);
             }
             else if (_sprite != null)
             {
-                _sprite.FlipH = !FacingRight;
+                // Prefer Scale flipping over FlipH, so children (like AttackArea) flip too
+                var scale = _sprite.Scale;
+                float absX = Mathf.Abs(scale.X);
+                _sprite.Scale = new Vector2(absX * sign, scale.Y);
             }
         }
         

@@ -7,6 +7,8 @@ public partial class SampleEnemy : GameActor
     [Export] public float DetectionRange = 300.0f;
     [Export] public int ScoreValue = 10;
     
+    [Export] public Area2D AttackArea { get; private set; } = null!;
+    
     private SamplePlayer? _player;
     private RandomNumberGenerator _rng = new RandomNumberGenerator();
     private float _hitStunTimer = 0.0f; // Re-declared here as it was removed from base
@@ -14,7 +16,6 @@ public partial class SampleEnemy : GameActor
     public SampleEnemy()
     {
         Speed = 150.0f;
-        AttackRange = 80.0f;
         AttackDamage = 10.0f;
         AttackCooldown = 1.5f;
         MaxHealth = 50;
@@ -24,6 +25,9 @@ public partial class SampleEnemy : GameActor
     {
         base._Ready();
         _rng.Randomize();
+        
+        // Try to find AttackArea if not assigned
+        if (AttackArea == null) AttackArea = GetNodeOrNull<Area2D>("AttackArea");
         
         // Find player
         var parent = GetParent();
@@ -62,7 +66,36 @@ public partial class SampleEnemy : GameActor
         // AI Logic
         if (distanceToPlayer <= DetectionRange)
         {
-            if (distanceToPlayer <= AttackRange)
+            // Always face player if detected, regardless of attack state
+            Vector2 direction = (playerPos - enemyPos).Normalized();
+            if (direction.X != 0)
+            {
+                FlipFacing(direction.X > 0);
+            }
+
+            bool canAttack = false;
+            float fallbackAttackRange = 80.0f; // Hardcoded fallback if no Area2D
+
+            // Priority 1: Check actual collision overlap if Area exists
+            if (AttackArea != null)
+            {
+                // AttackArea flip is handled by FlipFacing now (if child of sprite) 
+                // or needs manual flip here if not? 
+                // Actually, FlipFacing above handles the visual flip. 
+                // If AttackArea is child of sprite, it is already flipped by the time we check here.
+                
+                if (AttackArea.OverlapsBody(_player))
+                {
+                    canAttack = true;
+                }
+            }
+            // Priority 2: Fallback to distance
+            else if (distanceToPlayer <= fallbackAttackRange + 10.0f)
+            {
+                canAttack = true;
+            }
+
+            if (canAttack)
             {
                 // Stop and attack
                 velocity = Vector2.Zero;
@@ -75,14 +108,7 @@ public partial class SampleEnemy : GameActor
             else
             {
                 // Chase
-                Vector2 direction = (playerPos - enemyPos).Normalized();
                 velocity = direction * Speed;
-                
-                // Face player
-                if (direction.X != 0)
-                {
-                    FlipFacing(direction.X > 0);
-                }
             }
         }
         else
@@ -100,11 +126,33 @@ public partial class SampleEnemy : GameActor
     
     private void AttackPlayer()
     {
-        AttackTimer = AttackCooldown; // Used Property AttackTimer
-        if (_player != null)
+        AttackTimer = AttackCooldown; 
+        
+        // Use AttackArea for detection if available
+        if (AttackArea != null)
         {
-            _player.TakeDamage((int)AttackDamage);
-            GD.Print("Enemy attacked player!");
+            // Flip AttackArea based on facing direction
+            var areaPos = AttackArea.Position;
+            AttackArea.Position = new Vector2(FacingRight ? Mathf.Abs(areaPos.X) : -Mathf.Abs(areaPos.X), areaPos.Y);
+            
+            var bodies = AttackArea.GetOverlappingBodies();
+            foreach (var body in bodies)
+            {
+                if (body is SamplePlayer player)
+                {
+                    player.TakeDamage((int)AttackDamage);
+                    GD.Print("Enemy attacked player via Area2D!");
+                }
+            }
+        }
+        else
+        {
+            // Fallback to old distance logic
+             if (_player != null)
+            {
+                _player.TakeDamage((int)AttackDamage);
+                GD.Print("Enemy attacked player (Fallback)!");
+            }
         }
         
         // Attack visual effect (scaling)
@@ -132,8 +180,6 @@ public partial class SampleEnemy : GameActor
         if (_animationPlayer != null)
         {
              _animationPlayer.Play("animations/hit");
-             // We'd need to listen to finish to go back to idle but for simple enemy without FSM, this is tricky
-             // For now, just play it.
         }
     }
     

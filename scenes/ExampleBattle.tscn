@@ -1,4 +1,4 @@
-[gd_scene load_steps=15 format=3 uid="uid://d15hs7qpxqhf3"]
+[gd_scene load_steps=16 format=3 uid="uid://d15hs7qpxqhf3"]
 
 [ext_resource type="Script" uid="uid://btbsyf4hokvud" path="res://scripts/actors/heroes/SamplePlayer.cs" id="1_player"]
 [ext_resource type="Script" uid="uid://hhpl8w4ty1ky" path="res://scripts/actors/enemies/SampleEnemy.cs" id="2_enemy"]
@@ -10,6 +10,9 @@
 [ext_resource type="Script" uid="uid://l40es7irdvdw" path="res://scripts/actors/heroes/states/PlayerHitState.cs" id="7_w7wnm"]
 [ext_resource type="Script" uid="uid://ba1kd5qgh17ag" path="res://scripts/actors/heroes/states/PlayerRunState.cs" id="8_bhpvs"]
 
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_attack"]
+size = Vector2(64.75629, 180.66397)
+
 [sub_resource type="PlaceholderTexture2D" id="PlaceholderTexture2D_player"]
 size = Vector2(32, 64)
 
@@ -17,11 +20,11 @@ size = Vector2(32, 64)
 radius = 15.0
 height = 60.0
 
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_attack"]
-size = Vector2(80, 60)
-
 [sub_resource type="PlaceholderTexture2D" id="PlaceholderTexture2D_enemy"]
 size = Vector2(32, 48)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_w7wnm"]
+size = Vector2(46.75, 119)
 
 [sub_resource type="CapsuleShape2D" id="CapsuleShape2D_enemy"]
 radius = 12.0
@@ -43,32 +46,37 @@ offset_right = 1280.0
 offset_bottom = 720.0
 color = Color(0.4, 0.35, 0.3, 1)
 
-[node name="Player" type="CharacterBody2D" parent="."]
+[node name="Player" type="CharacterBody2D" parent="." node_paths=PackedStringArray("AttackArea")]
 position = Vector2(200, 400)
 collision_mask = 3
 motion_mode = 1
 script = ExtResource("1_player")
+AttackArea = NodePath("SpineCharacter/AttackArea")
 
 [node name="SpineCharacter" parent="Player" instance=ExtResource("3_spine")]
-position = Vector2(-1.9999999, 28.999998)
-scale = Vector2(0.170396, 0.18113205)
+position = Vector2(-4, 62.999996)
+scale = Vector2(0.4285608, 0.48420432)
 
-[node name="Sprite2D" type="Sprite2D" parent="Player"]
-visible = false
-modulate = Color(0.3, 0.5, 1, 1)
-texture = SubResource("PlaceholderTexture2D_player")
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Player"]
-shape = SubResource("CapsuleShape2D_player")
-
-[node name="AttackArea" type="Area2D" parent="Player"]
+[node name="AttackArea" type="Area2D" parent="Player/SpineCharacter"]
+position = Vector2(9.333557, -130.11035)
+scale = Vector2(2.3333912, 2.0652437)
 collision_layer = 0
 collision_mask = 2
 monitorable = false
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Player/AttackArea"]
-position = Vector2(50, 0)
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Player/SpineCharacter/AttackArea"]
+position = Vector2(68.19653, -35.078217)
+scale = Vector2(1.1057913, 0.9401098)
 shape = SubResource("RectangleShape2D_attack")
+
+[node name="Sprite2D" type="Sprite2D" parent="Player"]
+modulate = Color(0.3, 0.5, 1, 1)
+texture = SubResource("PlaceholderTexture2D_player")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Player"]
+position = Vector2(-4.9999995, -31.999998)
+scale = Vector2(4.2414346, 3.233108)
+shape = SubResource("CapsuleShape2D_player")
 
 [node name="StateMachine" type="Node" parent="Player" node_paths=PackedStringArray("InitialState")]
 script = ExtResource("3_ceqyr")
@@ -89,17 +97,30 @@ script = ExtResource("7_w7wnm")
 [node name="Run" type="Node" parent="Player/StateMachine"]
 script = ExtResource("8_bhpvs")
 
-[node name="Enemy" type="CharacterBody2D" parent="."]
+[node name="Enemy" type="CharacterBody2D" parent="." node_paths=PackedStringArray("AttackArea")]
 position = Vector2(800, 400)
 collision_layer = 2
 motion_mode = 1
 script = ExtResource("2_enemy")
+AttackArea = NodePath("Sprite2D/AttackArea")
+FaceLeftByDefault = true
 
 [node name="Sprite2D" type="Sprite2D" parent="Enemy"]
 modulate = Color(1, 0.3, 0.3, 1)
+scale = Vector2(2.9374359, 2.5119002)
 texture = SubResource("PlaceholderTexture2D_enemy")
 
+[node name="AttackArea" type="Area2D" parent="Enemy/Sprite2D"]
+scale = Vector2(0.34043294, 0.39810497)
+collision_layer = 2
+monitorable = false
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Enemy/Sprite2D/AttackArea"]
+position = Vector2(-38.625, 0)
+shape = SubResource("RectangleShape2D_w7wnm")
+
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Enemy"]
+scale = Vector2(3.9243398, 2.6851737)
 shape = SubResource("CapsuleShape2D_enemy")
 
 [node name="UI" type="CanvasLayer" parent="."]

@@ -5,106 +5,115 @@ using Kuros.Systems.FSM;
 
 public partial class SamplePlayer : GameActor
 {
-	private Area2D _attackArea = null!;
-	private Label _statsLabel = null!;
-	private int _score = 0;
-	private ColorRect _attackVisualization = null!;
+	[ExportCategory("Combat")]
+	[Export] public Area2D AttackArea { get; private set; } = null!;
 	
+	[ExportCategory("UI")]
+	[Export] public Label StatsLabel { get; private set; } = null!; // Drag & Drop in Editor
+	
+	private int _score = 0;
+	
+	// Signal for UI updates (Alternative to direct reference)
+	[Signal] public delegate void StatsChangedEventHandler(int health, int score);
+
 	public override void _Ready()
 	{
-		// Initialize base (stats, nodes, animations, fsm)
 		base._Ready();
 		
-		_attackArea = GetNode<Area2D>("AttackArea");
-		_statsLabel = GetNode<Label>("../UI/PlayerStats");
+		// Fallback: Try to find nodes if not assigned in editor (Backward compatibility)
+		if (AttackArea == null) AttackArea = GetNodeOrNull<Area2D>("AttackArea");
+		if (StatsLabel == null) StatsLabel = GetNodeOrNull<Label>("../UI/PlayerStats");
 		
 		UpdateStatsUI();
-		
-		// Create attack visualization
-		_attackVisualization = new ColorRect();
-		_attackVisualization.Size = new Vector2(80, 60);
-		_attackVisualization.Color = new Color(1, 0, 0, 0.3f);
-		_attackVisualization.Position = new Vector2(10, -30);
-		AddChild(_attackVisualization);
-		_attackVisualization.Visible = false;
 	}
 	
-	// Removed _PhysicsProcess - Now handled by FSM!
+	// Override FlipFacing to handle AttackArea flipping correctly when turning
+	public override void FlipFacing(bool faceRight)
+	{
+		base.FlipFacing(faceRight);
+		
+		// If AttackArea is NOT a child of the flipped sprite/spine, we must flip it manually here.
+		// This is better than doing it in PerformAttackCheck because physics has time to update.
+		if (AttackArea != null)
+		{
+			 // We assume the AttackArea is centered or offset. If offset, we flip the offset.
+			 // Check if AttackArea parent is NOT the flipped visual (to avoid double flipping)
+			 if (AttackArea.GetParent() != _spineCharacter && AttackArea.GetParent() != _sprite)
+			 {
+				 var areaPos = AttackArea.Position;
+				 float absX = Mathf.Abs(areaPos.X);
+				 AttackArea.Position = new Vector2(faceRight ? absX : -absX, areaPos.Y);
+				 
+				 // Optional: Flip scale too if the shape is asymmetric
+				 var areaScale = AttackArea.Scale;
+				 float absScaleX = Mathf.Abs(areaScale.X);
+				 AttackArea.Scale = new Vector2(faceRight ? absScaleX : -absScaleX, areaScale.Y);
+			 }
+		}
+	}
 	
 	public void PerformAttackCheck()
 	{
+		// Reset timer just in case, though State usually manages cooldown entry
 		AttackTimer = AttackCooldown;
 		
-		GD.Print($"=== Player attacking! ===");
+		GD.Print($"=== Player attacking frame! ===");
 		
 		int hitCount = 0;
-		float facingDirection = FacingRight ? 1 : -1;
 		
-		var parent = GetParent();
-		foreach (Node child in parent.GetChildren())
+		if (AttackArea != null)
 		{
-			if (child is SampleEnemy enemy)
-			{
-				Vector2 playerPos = GlobalPosition;
-				Vector2 enemyPos = enemy.GlobalPosition;
-				Vector2 toEnemy = enemyPos - playerPos;
-				float distance = toEnemy.Length();
-				
-				bool inRange = distance <= AttackRange;
-				bool correctDirection = (facingDirection > 0 && toEnemy.X > 0) || 
-									   (facingDirection < 0 && toEnemy.X < 0);
-				bool inVerticalRange = Mathf.Abs(toEnemy.Y) <= 80.0f;
-				
-				GD.Print($"Enemy at {enemyPos}, distance: {distance:F2}, direction OK: {correctDirection}, vertical OK: {inVerticalRange}");
-				
-				if (inRange && correctDirection && inVerticalRange)
-				{
-					enemy.TakeDamage((int)AttackDamage);
-					hitCount++;
-					GD.Print($"Hit enemy! Distance: {distance:F2}");
-				}
-			}
-		}
-		
-		if (hitCount == 0)
-		{
-			GD.Print("No enemies hit!");
-		}
-		
-		if (_attackVisualization != null)
-		{
-			_attackVisualization.Visible = true;
-			_attackVisualization.Position = FacingRight ? new Vector2(10, -30) : new Vector2(-90, -30);
-			
-			var vizTween = CreateTween();
-			vizTween.TweenInterval(0.2);
-			vizTween.TweenCallback(Callable.From(() => _attackVisualization.Visible = false));
-		}
-	}
-	
-	public override void TakeDamage(int damage)
-	{
-		base.TakeDamage(damage);
-		UpdateStatsUI();
-	}
-	
-	public void AddScore(int points)
-	{
-		_score += points;
-		UpdateStatsUI();
-	}
-	
-	private void UpdateStatsUI()
-	{
-		if (_statsLabel != null)
-		{
-			_statsLabel.Text = $"Player HP: {CurrentHealth}\nScore: {_score}";
-		}
-	}
-	
-	protected override void Die()
-	{
-		GD.Print("Player died! Game Over!");
-		GetTree().ReloadCurrentScene();
-	}
+			// REMOVED: Manual Position flipping here. It's now handled in FlipFacing or via Scene Hierarchy.
+            
+            var bodies = AttackArea.GetOverlappingBodies();
+            foreach (var body in bodies)
+            {
+                if (body is SampleEnemy enemy)
+                {
+                    enemy.TakeDamage((int)AttackDamage);
+                    hitCount++;
+                    GD.Print($"Hit enemy: {enemy.Name}");
+                }
+            }
+        }
+        else
+        {
+            GD.PrintErr("AttackArea is missing! Assign it in Inspector.");
+        }
+        
+        if (hitCount == 0)
+        {
+            GD.Print("No enemies hit!");
+        }
+    }
+    
+    public override void TakeDamage(int damage)
+    {
+        base.TakeDamage(damage);
+        UpdateStatsUI();
+    }
+    
+    public void AddScore(int points)
+    {
+        _score += points;
+        UpdateStatsUI();
+    }
+    
+    private void UpdateStatsUI()
+    {
+        // Emit signal for decoupled UI systems
+        EmitSignal(SignalName.StatsChanged, CurrentHealth, _score);
+        
+        // Direct update if label is assigned (Simple approach)
+        if (StatsLabel != null)
+        {
+            StatsLabel.Text = $"Player HP: {CurrentHealth}\nScore: {_score}";
+        }
+    }
+    
+    protected override void Die()
+    {
+        GD.Print("Player died! Game Over!");
+        GetTree().ReloadCurrentScene();
+    }
 }

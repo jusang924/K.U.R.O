@@ -7,7 +7,19 @@ namespace Kuros.Actors.Heroes.States
 	{
 		public override void Enter()
 		{
-			Actor.AnimPlayer?.Play("animations/Idle");
+			if (Actor.AnimPlayer != null)
+			{
+				// Reset bones first to avoid "stuck" poses from previous animations
+				if (Actor.AnimPlayer.HasAnimation("RESET"))
+				{
+					Actor.AnimPlayer.Play("RESET");
+					Actor.AnimPlayer.Advance(0); // Apply immediately
+				}
+				
+				Actor.AnimPlayer.Play("animations/Idle");
+				var anim = Actor.AnimPlayer.GetAnimation("animations/Idle");
+				if (anim != null) anim.LoopMode = Animation.LoopModeEnum.Linear;
+			}
 			Actor.Velocity = Vector2.Zero;
 		}
 
