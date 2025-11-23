@@ -1,4 +1,4 @@
-[gd_scene load_steps=18 format=3 uid="uid://d15hs7qpxqhf3"]
+[gd_scene load_steps=19 format=3 uid="uid://d15hs7qpxqhf3"]
 
 [ext_resource type="Script" uid="uid://btbsyf4hokvud" path="res://scripts/actors/heroes/SamplePlayer.cs" id="1_player"]
 [ext_resource type="Script" uid="uid://hhpl8w4ty1ky" path="res://scripts/actors/enemies/SampleEnemy.cs" id="2_enemy"]
@@ -10,6 +10,7 @@
 [ext_resource type="Script" uid="uid://l40es7irdvdw" path="res://scripts/actors/heroes/states/PlayerHitState.cs" id="7_w7wnm"]
 [ext_resource type="Script" uid="uid://ba1kd5qgh17ag" path="res://scripts/actors/heroes/states/PlayerRunState.cs" id="8_bhpvs"]
 [ext_resource type="PackedScene" uid="uid://bvivxwyc4eucf" path="res://scenes/properties/DroppableExampleProperty.tscn" id="11_drop_example"]
+[ext_resource type="Script" path="res://scripts/scenes/BattleSceneManager.cs" id="12_battle_manager"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_attack"]
 size = Vector2(64.75629, 180.66397)
@@ -133,7 +134,14 @@ PickedColor = Color(0.19607843, 0.8039216, 0.19607843, 1)
 SpineAttachmentRootPath = NodePath("")
 AttachmentPointPath = NodePath("SpineCharacter/Skeleton2D/root/bone/bone2/bone3/bone14/bone15/bone16")
 
+[node name="BattleSceneManager" type="Node2D" parent="."]
+script = ExtResource("12_battle_manager")
+Player = NodePath("Player")
+AutoLoadHUD = true
+AutoLoadMenu = true
+
 [node name="UI" type="CanvasLayer" parent="."]
+visible = false
 
 [node name="PlayerStats" type="Label" parent="UI"]
 offset_left = 10.0
