@@ -1,5 +1,6 @@
 using Godot;
 using System;
+using System.Collections.Generic;
 
 namespace Kuros.Core
 {
@@ -10,14 +11,35 @@ namespace Kuros.Core
     /// </summary>
     public partial class PickupProperty : Node2D
     {
+        public enum AttachmentSlot
+        {
+            Custom = 0,
+            Head = 1,
+            Torso = 2,
+            LeftHand = 3,
+            RightHand = 4
+        }
+
+        private static readonly Dictionary<AttachmentSlot, string> AttachmentSlotLookup = new()
+        {
+            { AttachmentSlot.Head, "Head" },
+            { AttachmentSlot.Torso, "Torso" },
+            { AttachmentSlot.LeftHand, "LeftHand" },
+            { AttachmentSlot.RightHand, "RightHand" }
+        };
+
         [ExportGroup("Pickup")]
         [Export] public Area2D TriggerArea { get; private set; } = null!;
         [Export] public bool AutoDisableTriggerOnPickup = true;
 
         [ExportGroup("Attachment")]
-        [Export] public string AttachmentBoneName = "";
+        [Export(PropertyHint.Enum, "Custom,Head,Torso,LeftHand,RightHand")]
+        public AttachmentSlot Slot { get; set; } = AttachmentSlot.Custom;
+        [Export] public NodePath SpineAttachmentRootPath = new NodePath("SpineCharacter/Skeleton2D/AttachmentPoints");
         [Export] public NodePath AttachmentPointPath = new NodePath();
         [Export] public Vector2 AttachedLocalOffset = Vector2.Zero;
+        [Export] public float AttachedLocalRotationDegrees = 0f;
+        [Export] public Vector2 AttachedLocalScale = Vector2.One;
 
         protected GameActor? FocusedActor { get; private set; }
         protected GameActor? OwningActor { get; private set; }
@@ -27,6 +49,8 @@ namespace Kuros.Core
         private bool _initialMonitorable = true;
         private uint _initialCollisionLayer;
         private uint _initialCollisionMask;
+        private float _defaultRotationDegrees;
+        private Vector2 _defaultScale = Vector2.One;
 
         public override void _Ready()
         {
@@ -43,6 +67,9 @@ namespace Kuros.Core
             _initialMonitorable = TriggerArea.Monitorable;
             _initialCollisionLayer = TriggerArea.CollisionLayer;
             _initialCollisionMask = TriggerArea.CollisionMask;
+
+            _defaultRotationDegrees = RotationDegrees;
+            _defaultScale = Scale;
 
             SetProcess(true);
         }
@@ -81,48 +108,11 @@ namespace Kuros.Core
 
         protected virtual void AttachToActor(GameActor actor)
         {
-            Node targetParent = actor;
-
-            // Priority 1: Bone Name (if actor has a Skeleton2D)
-            if (!string.IsNullOrEmpty(AttachmentBoneName))
-            {
-                var skeleton = actor.GetNodeOrNull<Skeleton2D>("SpineCharacter/Skeleton2D") ?? 
-                               actor.GetNodeOrNull<Skeleton2D>("Skeleton2D") ??
-                               actor.FindChild("Skeleton2D", true, false) as Skeleton2D;
-
-                if (skeleton != null)
-                {
-                    // Find the bone node by name (Godot 4 Skeleton2D structure: Skeleton2D -> Bone2D nodes)
-                    var boneNode = skeleton.FindChild(AttachmentBoneName, true, false);
-                    if (boneNode != null)
-                    {
-                        targetParent = boneNode;
-                        GD.Print($"Attached {Name} to bone node: {boneNode.Name}");
-                    }
-                    else
-                    {
-                        GD.PrintErr($"Bone '{AttachmentBoneName}' not found in {actor.Name}'s skeleton.");
-                    }
-                }
-            }
-            // Priority 2: Explicit NodePath
-            else if (AttachmentPointPath.GetNameCount() > 0)
-            {
-                var explicitTarget = actor.GetNodeOrNull<Node>(AttachmentPointPath);
-                if (explicitTarget != null)
-                {
-                    targetParent = explicitTarget;
-                    GD.Print($"Successfully found attachment target: {explicitTarget.Name} at path {explicitTarget.GetPath()}");
-                }
-                else
-                {
-                    GD.PrintErr($"Failed to find attachment target at path: {AttachmentPointPath} relative to {actor.Name}");
-                }
-            }
-
+            var targetParent = ResolveAttachmentParent(actor) ?? actor;
             MoveToParent(targetParent);
             Position = AttachedLocalOffset;
-            Rotation = 0; // Reset rotation to align with the bone
+            RotationDegrees = AttachedLocalRotationDegrees;
+            Scale = AttachedLocalScale;
         }
 
         protected virtual void OnPicked(GameActor actor)
@@ -202,6 +192,8 @@ namespace Kuros.Core
             var dropParent = GetDropParent(actor);
             MoveToParent(dropParent);
             GlobalPosition = ComputeDropPosition(actor, dropOffset);
+            RotationDegrees = _defaultRotationDegrees;
+            Scale = _defaultScale;
 
             IsPicked = false;
             OwningActor = null;
@@ -227,6 +219,53 @@ namespace Kuros.Core
         protected virtual Vector2 ComputeDropPosition(GameActor actor, Vector2 dropOffset)
         {
             return actor.GlobalPosition + dropOffset;
+        }
+
+        protected virtual Node? ResolveAttachmentParent(GameActor actor)
+        {
+            Node? slotTarget = null;
+
+            var slotPath = ResolveSlotPath();
+            if (slotPath.GetNameCount() > 0)
+            {
+                slotTarget = actor.GetNodeOrNull<Node>(slotPath);
+            }
+
+            if (slotTarget != null)
+            {
+                return slotTarget;
+            }
+
+            if (AttachmentPointPath.GetNameCount() > 0)
+            {
+                var explicitTarget = actor.GetNodeOrNull<Node>(AttachmentPointPath);
+                if (explicitTarget != null)
+                {
+                    return explicitTarget;
+                }
+            }
+
+            return null;
+        }
+
+        protected NodePath ResolveSlotPath()
+        {
+            if (Slot == AttachmentSlot.Custom)
+            {
+                return new NodePath();
+            }
+
+            if (!AttachmentSlotLookup.TryGetValue(Slot, out var slotName))
+            {
+                return new NodePath();
+            }
+
+            var root = SpineAttachmentRootPath.GetNameCount() > 0
+                ? SpineAttachmentRootPath.GetConcatenatedNames()
+                : string.Empty;
+
+            var combined = string.IsNullOrEmpty(root) ? slotName : $"{root}/{slotName}";
+            return new NodePath(combined);
         }
     }
 }
