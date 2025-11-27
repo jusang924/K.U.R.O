@@ -8,14 +8,24 @@ namespace Kuros.UI
     /// </summary>
     public partial class BattleMenu : Control
     {
+        private const string CompendiumScenePath = "res://scenes/ui/windows/CompendiumWindow.tscn";
+
         // 信号
         [Signal] public delegate void ResumeRequestedEventHandler();
         [Signal] public delegate void SettingsRequestedEventHandler();
         [Signal] public delegate void QuitRequestedEventHandler();
         [Signal] public delegate void ExitGameRequestedEventHandler();
 
+        [ExportCategory("UI References")]
+        [Export] public Button ResumeButton { get; private set; } = null!;
+        [Export] public Button SettingsButton { get; private set; } = null!;
+        [Export] public Button CompendiumButton { get; private set; } = null!;
+        [Export] public Button QuitButton { get; private set; } = null!;
+        [Export] public Button ExitButton { get; private set; } = null!;
+
         private bool _isOpen = false;
-        private Control _menuContainer = null!;
+        private CompendiumWindow? _compendiumWindow;
+        private PackedScene? _compendiumScene;
 
         public bool IsOpen => _isOpen;
 
@@ -24,11 +34,29 @@ namespace Kuros.UI
             // 暂停时也要接收输入
             ProcessMode = ProcessModeEnum.Always;
 
-            // 创建菜单UI
-            CreateMenuUI();
+            // 自动查找节点引用
+            ResumeButton ??= GetNodeOrNull<Button>("Window/WindowMargin/WindowVBox/ResumeButton");
+            SettingsButton ??= GetNodeOrNull<Button>("Window/WindowMargin/WindowVBox/SettingsButton");
+            CompendiumButton ??= GetNodeOrNull<Button>("Window/WindowMargin/WindowVBox/CompendiumButton");
+            QuitButton ??= GetNodeOrNull<Button>("Window/WindowMargin/WindowVBox/QuitButton");
+            ExitButton ??= GetNodeOrNull<Button>("Window/WindowMargin/WindowVBox/ExitButton");
 
-            // 初始隐藏
-            _menuContainer.Visible = false;
+            // 连接按钮信号
+            if (ResumeButton != null)
+                ResumeButton.Pressed += OnResumePressed;
+            if (SettingsButton != null)
+                SettingsButton.Pressed += OnSettingsPressed;
+            if (CompendiumButton != null)
+                CompendiumButton.Pressed += OnCompendiumPressed;
+            if (QuitButton != null)
+                QuitButton.Pressed += OnQuitPressed;
+            if (ExitButton != null)
+                ExitButton.Pressed += OnExitGamePressed;
+
+            LoadCompendiumWindow();
+
+            // 延迟确保隐藏（在UIManager设置可见之后）
+            CallDeferred(MethodName.EnsureHidden);
         }
 
         public override void _Input(InputEvent @event)
@@ -40,84 +68,25 @@ namespace Kuros.UI
             }
         }
 
-        private void CreateMenuUI()
+        private void LoadCompendiumWindow()
         {
-            // 菜单容器 - 设置为Always以在暂停时也能响应
-            _menuContainer = new Control();
-            _menuContainer.Name = "MenuContainer";
-            _menuContainer.SetAnchorsPreset(LayoutPreset.FullRect);
-            _menuContainer.ProcessMode = ProcessModeEnum.Always;
-            AddChild(_menuContainer);
+            _compendiumScene ??= GD.Load<PackedScene>(CompendiumScenePath);
+            if (_compendiumScene == null)
+            {
+                GD.PrintErr("无法加载图鉴窗口场景：", CompendiumScenePath);
+                return;
+            }
 
-            // 背景遮罩
-            var background = new ColorRect();
-            background.Name = "Background";
-            background.SetAnchorsPreset(LayoutPreset.FullRect);
-            background.Color = new Color(0, 0, 0, 0.7f);
-            _menuContainer.AddChild(background);
-
-            // 面板
-            var panel = new Panel();
-            panel.Name = "Panel";
-            panel.SetAnchorsPreset(LayoutPreset.Center);
-            panel.CustomMinimumSize = new Vector2(400, 350);
-            panel.Position = new Vector2(-200, -175);
-            _menuContainer.AddChild(panel);
-
-            // 按钮容器
-            var vbox = new VBoxContainer();
-            vbox.Name = "VBoxContainer";
-            vbox.SetAnchorsPreset(LayoutPreset.Center);
-            vbox.Position = new Vector2(-150, -140);
-            vbox.CustomMinimumSize = new Vector2(300, 280);
-            vbox.AddThemeConstantOverride("separation", 20);
-            _menuContainer.AddChild(vbox);
-
-            // 标题
-            var title = new Label();
-            title.Text = "暂停菜单";
-            title.HorizontalAlignment = HorizontalAlignment.Center;
-            title.AddThemeFontSizeOverride("font_size", 32);
-            vbox.AddChild(title);
-
-            // 分隔线
-            var separator = new HSeparator();
-            vbox.AddChild(separator);
-
-            // 继续游戏按钮
-            var resumeBtn = new Button();
-            resumeBtn.Text = "继续游戏";
-            resumeBtn.AddThemeFontSizeOverride("font_size", 20);
-            resumeBtn.Pressed += OnResumePressed;
-            vbox.AddChild(resumeBtn);
-
-            // 设置按钮
-            var settingsBtn = new Button();
-            settingsBtn.Text = "设置";
-            settingsBtn.AddThemeFontSizeOverride("font_size", 20);
-            settingsBtn.Pressed += OnSettingsPressed;
-            vbox.AddChild(settingsBtn);
-
-            // 返回主菜单按钮
-            var quitBtn = new Button();
-            quitBtn.Text = "返回主菜单";
-            quitBtn.AddThemeFontSizeOverride("font_size", 20);
-            quitBtn.Pressed += OnQuitPressed;
-            vbox.AddChild(quitBtn);
-
-            // 退出游戏按钮
-            var exitBtn = new Button();
-            exitBtn.Text = "退出游戏";
-            exitBtn.AddThemeFontSizeOverride("font_size", 20);
-            exitBtn.Pressed += OnExitGamePressed;
-            vbox.AddChild(exitBtn);
+            _compendiumWindow = _compendiumScene.Instantiate<CompendiumWindow>();
+            _compendiumWindow.HideWindow();
+            AddChild(_compendiumWindow);
         }
 
         public void OpenMenu()
         {
             if (_isOpen) return;
 
-            _menuContainer.Visible = true;
+            Visible = true;
             _isOpen = true;
             GetTree().Paused = true;
         }
@@ -126,7 +95,7 @@ namespace Kuros.UI
         {
             if (!_isOpen) return;
 
-            _menuContainer.Visible = false;
+            Visible = false;
             _isOpen = false;
             GetTree().Paused = false;
         }
@@ -137,6 +106,14 @@ namespace Kuros.UI
                 CloseMenu();
             else
                 OpenMenu();
+        }
+
+        private void EnsureHidden()
+        {
+            if (!_isOpen)
+            {
+                Visible = false;
+            }
         }
 
         private void OnResumePressed()
@@ -161,6 +138,24 @@ namespace Kuros.UI
         {
             EmitSignal(SignalName.ExitGameRequested);
             GetTree().Quit();
+        }
+
+        private void OnCompendiumPressed()
+        {
+            if (_compendiumWindow == null)
+            {
+                GD.PrintErr("图鉴窗口未创建");
+                return;
+            }
+
+            if (_compendiumWindow.Visible)
+            {
+                _compendiumWindow.HideWindow();
+            }
+            else
+            {
+                _compendiumWindow.ShowWindow();
+            }
         }
     }
 }

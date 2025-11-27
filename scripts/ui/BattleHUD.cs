@@ -22,6 +22,7 @@ namespace Kuros.UI
 
 		// 信号：用于通知外部系统
 		[Signal] public delegate void HUDReadyEventHandler();
+		[Signal] public delegate void BattleMenuRequestedEventHandler();
 
 		public override void _Ready()
 		{
@@ -51,6 +52,14 @@ namespace Kuros.UI
 
 			// 发出就绪信号
 			EmitSignal(SignalName.HUDReady);
+		}
+
+		/// <summary>
+		/// 供外部或UI控件调用以请求打开战斗菜单
+		/// </summary>
+		public void RequestBattleMenu()
+		{
+			EmitSignal(SignalName.BattleMenuRequested);
 		}
 
 		/// <summary>
