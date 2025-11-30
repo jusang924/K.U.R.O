@@ -368,7 +368,7 @@ namespace Kuros.UI
         }
 
         /// <summary>
-        /// 在节点及其直接子节点中查找物品栏窗口（非递归，性能更好）
+        /// 在节点及其所有子节点中递归查找物品栏窗口
         /// </summary>
         private InventoryWindow? FindInventoryWindowInNode(Node node)
         {
@@ -378,12 +378,13 @@ namespace Kuros.UI
                 return inventoryWindow;
             }
             
-            // 只检查直接子节点，不递归
+            // 递归检查所有子节点
             foreach (Node child in node.GetChildren())
             {
-                if (child is InventoryWindow childInventoryWindow)
+                var found = FindInventoryWindowInNode(child);
+                if (found != null)
                 {
-                    return childInventoryWindow;
+                    return found;
                 }
             }
             

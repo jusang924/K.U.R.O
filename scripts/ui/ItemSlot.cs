@@ -84,26 +84,21 @@ namespace Kuros.UI
             }
             else
             {
-                // 检查是否为空白道具（EmptyItem）
-                bool isEmptyItem = ItemStack.Item.ItemId == "empty_item";
-                
-                // 槽位有物品时，隐藏图标和数量标签，显示测试文本
+                // 槽位有物品时，显示图标和数量
                 if (ItemIcon != null)
                 {
-                    ItemIcon.Texture = null;
-                    ItemIcon.Visible = false;
+                    ItemIcon.Texture = ItemStack.Item.Icon;
+                    ItemIcon.Visible = ItemIcon.Texture != null;
                     ItemIcon.Modulate = Colors.White;
                 }
                 if (QuantityLabel != null)
                 {
-                    QuantityLabel.Text = string.Empty;
-                    QuantityLabel.Visible = false;
+                    QuantityLabel.Text = ItemStack.Quantity > 1 ? ItemStack.Quantity.ToString() : string.Empty;
+                    QuantityLabel.Visible = ItemStack.Quantity > 1;
                 }
                 if (SlotLabel != null)
                 {
-                    // 如果是空白道具，显示空文本；否则显示测试文本
-                    SlotLabel.Text = isEmptyItem ? "空" : "我是测试文本";
-                    SlotLabel.Visible = true;
+                    SlotLabel.Visible = false;
                 }
             }
         }

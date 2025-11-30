@@ -283,26 +283,8 @@ namespace Kuros.UI
             // 检查窗口是否打开
             if (!Visible || !_isOpen) return;
 
-            // ESC键关闭窗口（同时检查action和keycode，确保能捕获ESC键）
-            bool isEscKey = false;
-            if (@event.IsActionPressed("ui_cancel"))
+            if (TryHandleCloseInput(@event, useAcceptEvent: true, useSetInputAsHandled: true))
             {
-                isEscKey = true;
-            }
-            else if (@event is InputEventKey keyEvent && keyEvent.Pressed)
-            {
-                // 直接检查ESC键的keycode（备用方法）
-                if (keyEvent.Keycode == Key.Escape)
-                {
-                    isEscKey = true;
-                }
-            }
-
-            if (isEscKey)
-            {
-                HideWindow();
-                GetViewport().SetInputAsHandled();
-                AcceptEvent();
                 return;
             }
         }
@@ -312,25 +294,8 @@ namespace Kuros.UI
             // 检查窗口是否打开
             if (!Visible || !_isOpen) return;
 
-            // ESC键关闭窗口（GUI输入备用处理）
-            bool isEscKey = false;
-            if (@event.IsActionPressed("ui_cancel"))
+            if (TryHandleCloseInput(@event, useAcceptEvent: true, useSetInputAsHandled: false))
             {
-                isEscKey = true;
-            }
-            else if (@event is InputEventKey keyEvent && keyEvent.Pressed)
-            {
-                // 直接检查ESC键的keycode（备用方法）
-                if (keyEvent.Keycode == Key.Escape)
-                {
-                    isEscKey = true;
-                }
-            }
-
-            if (isEscKey)
-            {
-                HideWindow();
-                AcceptEvent();
                 return;
             }
         }
@@ -340,27 +305,39 @@ namespace Kuros.UI
             // 检查窗口是否打开
             if (!Visible || !_isOpen) return;
 
-            // ESC键关闭窗口（未处理输入的备用处理）
-            bool isEscKey = false;
-            if (@event.IsActionPressed("ui_cancel"))
+            if (TryHandleCloseInput(@event, useAcceptEvent: false, useSetInputAsHandled: true))
             {
-                isEscKey = true;
-            }
-            else if (@event is InputEventKey keyEvent && keyEvent.Pressed)
-            {
-                // 直接检查ESC键的keycode（备用方法）
-                if (keyEvent.Keycode == Key.Escape)
-                {
-                    isEscKey = true;
-                }
-            }
-
-            if (isEscKey)
-            {
-                HideWindow();
-                GetViewport().SetInputAsHandled();
                 return;
             }
+        }
+
+        /// <summary>
+        /// 尝试处理关闭窗口的输入（ESC键或物品栏键）
+        /// </summary>
+        /// <param name="event">输入事件</param>
+        /// <param name="useAcceptEvent">是否调用AcceptEvent</param>
+        /// <param name="useSetInputAsHandled">是否调用SetInputAsHandled</param>
+        /// <returns>如果输入被处理返回true，否则返回false</returns>
+        private bool TryHandleCloseInput(InputEvent @event, bool useAcceptEvent, bool useSetInputAsHandled)
+        {
+            var itemPopup = Kuros.Managers.UIManager.Instance?.GetUI<ItemObtainedPopup>("ItemObtainedPopup");
+            if (itemPopup != null && itemPopup.Visible)
+            {
+                return false;
+            }
+
+            bool isEscKey = @event.IsActionPressed("ui_cancel") ||
+                (@event is InputEventKey keyEvent && keyEvent.Pressed && keyEvent.Keycode == Key.Escape);
+            bool isInventoryKey = @event.IsActionPressed("open_inventory");
+
+            if (isEscKey || isInventoryKey)
+            {
+                HideWindow();
+                if (useSetInputAsHandled) GetViewport().SetInputAsHandled();
+                if (useAcceptEvent) AcceptEvent();
+                return true;
+            }
+            return false;
         }
 
         /// <summary>

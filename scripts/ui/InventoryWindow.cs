@@ -51,6 +51,9 @@ namespace Kuros.UI
             // 暂停时也要接收输入
             ProcessMode = ProcessModeEnum.Always;
             
+            // 添加到组以便其他组件可以通过组查找找到此窗口
+            AddToGroup("inventory_window");
+            
             CacheNodeReferences();
             InitializeSlots();
             

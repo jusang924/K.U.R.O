@@ -16,7 +16,7 @@ namespace Kuros.Actors.Heroes
 
         public InventoryContainer Backpack { get; private set; } = null!;
         public InventoryContainer? QuickBar { get; set; }
-        
+
         // 空白道具资源缓存
         private ItemDefinition? _emptyItem;
 

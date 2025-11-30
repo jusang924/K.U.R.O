@@ -282,8 +282,8 @@ namespace Kuros.UI
 			{
 				// 检查是否为空白道具（EmptyItem）
 				bool isEmptyItem = stack.Item.ItemId == "empty_item";
-				// 如果是空白道具，显示空文本；否则显示测试文本
-				_quickSlotLabels[slotIndex].Text = isEmptyItem ? "空" : "我是测试文本";
+				// 如果是空白道具，显示空文本；否则显示物品名称
+				_quickSlotLabels[slotIndex].Text = isEmptyItem ? "空" : stack.Item.DisplayName;
 			}
 		}
 		

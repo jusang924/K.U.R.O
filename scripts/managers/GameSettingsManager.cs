@@ -10,7 +10,7 @@ namespace Kuros.Managers
 	{
 		public static GameSettingsManager Instance { get; private set; } = null!;
 
-		private const string ConfigPath = "res://config/window_settings.cfg";
+		private const string ConfigPath = "user://config/window_settings.cfg";
 		private const string WindowSection = "Window";
 		private const string PresetKey = "Preset";
 
@@ -35,8 +35,35 @@ namespace Kuros.Managers
 			}
 
 			Instance = this;
+			EnsureConfigDirectoryExists();
 			LoadSettings();
 			ApplyCurrentPreset();
+		}
+
+		/// <summary>
+		/// 确保配置目录存在
+		/// </summary>
+		private void EnsureConfigDirectoryExists()
+		{
+			var dirAccess = DirAccess.Open("user://");
+			if (dirAccess == null)
+			{
+				GD.PrintErr("GameSettingsManager: 无法打开 user:// 目录");
+				return;
+			}
+
+			if (!dirAccess.DirExists("config"))
+			{
+				var err = dirAccess.MakeDir("config");
+				if (err != Error.Ok)
+				{
+					GD.PrintErr($"GameSettingsManager: 无法创建 config 目录，错误: {err}");
+				}
+				else
+				{
+					GD.Print("GameSettingsManager: 已创建 config 目录");
+				}
+			}
 		}
 
 		public void ApplyCurrentPreset()

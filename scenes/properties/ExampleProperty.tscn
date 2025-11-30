@@ -5,7 +5,7 @@
 [sub_resource type="PlaceholderTexture2D" id="PlaceholderTexture2D_bqvme"]
 size = Vector2(20, 20)
 
-[node name="ExampleProperty"]
+[node name="ExampleProperty" type="Node2D"]
 script = ExtResource("2_a1o0p")
 ScoreBonus = 10
 
