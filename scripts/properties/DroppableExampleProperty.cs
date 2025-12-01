@@ -7,7 +7,7 @@ using Kuros.Managers;
 
 public partial class DroppableExampleProperty : DroppablePickupProperty
 {
-    [Export] public int EnergyValue = 25;
+    [Export] public int HealValue = 25;
     [Export] public Color PickedColor = Colors.LimeGreen;
     [ExportGroup("Item")]
     [Export] public ItemDefinition? Item { get; set; } // 可选的物品定义
@@ -16,7 +16,9 @@ public partial class DroppableExampleProperty : DroppablePickupProperty
 
     private Color _initialColor = Colors.White;
     private Sprite2D? _sprite;
-    private bool _energyGranted;
+    private bool _healGranted;
+    private GameActor? _healedActor;
+    private int _actualHealAmount;
 
     public override void _Ready()
     {
@@ -54,14 +56,14 @@ public partial class DroppableExampleProperty : DroppablePickupProperty
     protected override void OnPicked(GameActor actor)
     {
         base.OnPicked(actor);
-        _energyGranted = true;
 
         if (_sprite != null)
         {
             _sprite.Modulate = PickedColor;
         }
 
-        GD.Print($"{Name} granting {EnergyValue} energy to {actor.Name}");
+        // 應用治療效果
+        ApplyHealEffect(actor);
 
         // 如果设置了物品，添加到玩家物品栏
         if (actor is SamplePlayer player)
@@ -132,7 +134,7 @@ public partial class DroppableExampleProperty : DroppablePickupProperty
         base.OnPutDown(actor);
 
         ResetSpriteColor();
-        ClearEnergyEffect(actor);
+        ClearHealEffect(actor);
 
         // 从玩家物品栏中移除当前选中槽位的物品
         // 关键修复：应该从当前选中的快捷栏槽位获取物品，而不是使用Item属性
@@ -155,14 +157,59 @@ public partial class DroppableExampleProperty : DroppablePickupProperty
     }
 
     /// <summary>
-    /// 清除能量效果并记录日志
+    /// 清除治療效果並記錄日誌
     /// </summary>
-    private void ClearEnergyEffect(GameActor actor)
+    private void ClearHealEffect(GameActor actor)
     {
-        if (_energyGranted)
+        if (_healGranted)
         {
-            GD.Print($"{Name} put down by {actor.Name}. Energy effect removed.");
-            _energyGranted = false;
+            GD.Print($"{Name} put down by {actor.Name}. Heal effect of {_actualHealAmount} HP was previously granted.");
+            // 注意：治療效果通常不會在放下物品時撤銷
+            // 如果需要撤銷效果，可以在這裡添加邏輯
+            _healGranted = false;
+            _healedActor = null;
+            _actualHealAmount = 0;
+        }
+    }
+
+    /// <summary>
+    /// 應用治療效果到角色
+    /// </summary>
+    private void ApplyHealEffect(GameActor actor)
+    {
+        if (actor == null)
+        {
+            GD.PrintErr($"{Name}: Cannot apply heal effect - actor is null");
+            return;
+        }
+
+        if (_healGranted)
+        {
+            GD.Print($"{Name}: Heal effect already granted, skipping");
+            return;
+        }
+
+        // 計算實際治療量（不超過最大生命值）
+        int healthBefore = actor.CurrentHealth;
+        int maxHeal = actor.MaxHealth - actor.CurrentHealth;
+        _actualHealAmount = Mathf.Min(HealValue, maxHeal);
+
+        if (_actualHealAmount > 0)
+        {
+            // 使用 RestoreHealth 方法來恢復生命值
+            int newHealth = Mathf.Min(actor.CurrentHealth + _actualHealAmount, actor.MaxHealth);
+            actor.RestoreHealth(newHealth);
+            
+            _healGranted = true;
+            _healedActor = actor;
+            
+            GD.Print($"{Name} healed {actor.Name} for {_actualHealAmount} HP ({healthBefore} -> {actor.CurrentHealth}/{actor.MaxHealth})");
+        }
+        else
+        {
+            GD.Print($"{Name}: {actor.Name} is at full health ({actor.CurrentHealth}/{actor.MaxHealth}), no healing applied");
+            _healGranted = true; // 標記為已處理，即使沒有實際治療
+            _healedActor = actor;
         }
     }
 

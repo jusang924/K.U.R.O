@@ -18,7 +18,7 @@ namespace Kuros.Actors.NPC
 		
 		[ExportCategory("Visual")]
 		[Export] public NodePath? PromptLabelPath { get; set; }
-		[Export] public string InteractionPromptText { get; set; } = "按 [F] 交互";
+		[Export] public string InteractionPromptText { get; set; } = "按 [E] 交互";
 		
 		private Area2D? _interactionArea;
 		private Label? _promptLabel;
@@ -193,27 +193,15 @@ namespace Kuros.Actors.NPC
 			{
 				_hasTriedLoadDialogue = true;
 				CreateDefaultDialogue();
+				UpdatePromptVisibility();
 			}
 			
 			// 检查玩家是否在范围内并按下交互键
 			if (_playerInRange != null && !_isInteracting && DialogueData != null)
 			{
-				if (Input.IsActionJustPressed("take_up"))
+				if (Input.IsActionJustPressed("interact"))
 				{
 					StartInteraction();
-				}
-			}
-			else if (_playerInRange != null && Input.IsActionJustPressed("take_up"))
-			{
-				// 如果对话数据为空，创建默认对话数据
-				if (DialogueData == null && !_hasTriedLoadDialogue)
-				{
-					_hasTriedLoadDialogue = true;
-					CreateDefaultDialogue();
-					if (DialogueData != null)
-					{
-						UpdatePromptVisibility();
-					}
 				}
 			}
 			
