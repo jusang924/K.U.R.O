@@ -18,12 +18,11 @@ namespace Kuros.Actors.Heroes
         }
 
         [Export] public PlayerInventoryComponent? InventoryComponent { get; private set; }
-        [Export(PropertyHint.Range, "0,199,1")] public int ActiveBackpackSlotIndex { get; private set; }
-        [Export(PropertyHint.Range, "0,999,1")] public int DropAmountPerAction { get; set; } = 0;
         [Export] public Vector2 DropOffset = new Vector2(32, 0);
         [Export] public Vector2 ThrowOffset = new Vector2(48, -10);
         [Export(PropertyHint.Range, "0,2000,1")] public float ThrowImpulse = 800f;
         [Export] public bool EnableInput = true;
+        [Export] public string ThrowStateName { get; set; } = "Throw";
 
         private GameActor? _actor;
 
@@ -60,32 +59,57 @@ namespace Kuros.Actors.Heroes
             {
                 TryHandleDrop(DropDisposition.Throw);
             }
+
+            if (Input.IsActionJustPressed("item_select_right"))
+            {
+                InventoryComponent?.SelectNextBackpackSlot();
+            }
+
+            if (Input.IsActionJustPressed("item_select_left"))
+            {
+                InventoryComponent?.SelectPreviousBackpackSlot();
+            }
+
+            if (Input.IsActionJustPressed("take_up"))
+            {
+                TriggerPickupState();
+            }
         }
 
-        public void SetActiveSlot(int slotIndex)
+        public bool TryTriggerThrowAfterAnimation()
         {
-            ActiveBackpackSlotIndex = Mathf.Clamp(slotIndex, 0, InventoryComponent?.Backpack?.Slots.Count - 1 ?? slotIndex);
+            return TryHandleDrop(DropDisposition.Throw, skipAnimation: true);
         }
 
         private bool TryHandleDrop(DropDisposition disposition)
         {
-            var backpack = InventoryComponent?.Backpack;
-            if (backpack == null)
+            return TryHandleDrop(disposition, skipAnimation: false);
+        }
+
+        private bool TryHandleDrop(DropDisposition disposition, bool skipAnimation)
+        {
+            if (InventoryComponent == null)
             {
                 return false;
             }
 
-            var stack = backpack.GetStack(ActiveBackpackSlotIndex);
-            if (stack == null)
+            var selectedStack = InventoryComponent.GetSelectedBackpackStack();
+            if (selectedStack == null)
             {
-                GameLogger.Info(nameof(PlayerItemInteractionComponent), $"背包槽 {ActiveBackpackSlotIndex} 没有物品可丢弃。");
                 return false;
             }
 
-            int requestedAmount = DropAmountPerAction <= 0 ? stack.Quantity : Mathf.Min(DropAmountPerAction, stack.Quantity);
+            if (!skipAnimation && disposition == DropDisposition.Throw)
+            {
+                if (TryTriggerThrowState())
+                {
+                    return false;
+                }
 
-            if (!backpack.TryExtractFromSlot(ActiveBackpackSlotIndex, requestedAmount, out var extracted) ||
-                extracted == null || extracted.IsEmpty)
+                return TryHandleDrop(disposition, skipAnimation: true);
+            }
+
+            if (!InventoryComponent.TryExtractFromSelectedSlot(selectedStack.Quantity, out var extracted) || extracted == null || extracted.IsEmpty)
             {
                 return false;
             }
@@ -95,21 +119,29 @@ namespace Kuros.Actors.Heroes
 
             if (entity == null)
             {
-                int restored = backpack.AddItem(extracted.Item, extracted.Quantity);
-                if (restored < extracted.Quantity)
+                if (InventoryComponent.TryReturnStackToSelectedSlot(extracted, out var returned) && returned > 0 && extracted != null)
                 {
-                    GameLogger.Error(nameof(PlayerItemInteractionComponent), $"尝试恢复 {extracted.Item.ItemId} 失败，剩余 {extracted.Quantity - restored} 个物品无法找回。");
+                    if (!extracted.IsEmpty)
+                    {
+                        InventoryComponent.TryAddItem(extracted.Item, extracted.Quantity);
+                        extracted.Remove(extracted.Quantity);
+                    }
                 }
+                else if (extracted != null && !extracted.IsEmpty)
+                {
+                    InventoryComponent.TryAddItem(extracted.Item, extracted.Quantity);
+                    extracted.Remove(extracted.Quantity);
+                }
+
                 return false;
             }
-
-            InventoryComponent?.NotifyItemRemoved(extracted.Item.ItemId);
 
             if (disposition == DropDisposition.Throw)
             {
                 entity.ApplyThrowImpulse(GetFacingDirection() * ThrowImpulse);
             }
 
+            InventoryComponent.NotifyItemRemoved(extracted.Item.ItemId);
             return true;
         }
 
@@ -121,6 +153,53 @@ namespace Kuros.Actors.Heroes
             return origin + new Vector2(direction.X * offset.X, offset.Y);
         }
 
+        internal bool ExecutePickupAfterAnimation() => TryHandlePickup();
+
+        private void TriggerPickupState()
+        {
+            if (InventoryComponent?.HasSelectedItem == true)
+            {
+                return;
+            }
+
+            if (_actor?.StateMachine == null)
+            {
+                TryHandlePickup();
+                return;
+            }
+
+            _actor.StateMachine.ChangeState("PickUp");
+        }
+
+        private bool TryHandlePickup()
+        {
+            if (_actor == null)
+            {
+                return false;
+            }
+
+            if (InventoryComponent?.HasSelectedItem == true)
+            {
+                return false;
+            }
+
+            var area = _actor.GetNodeOrNull<Area2D>("SpineCharacter/AttackArea");
+            if (area == null)
+            {
+                return false;
+            }
+
+            foreach (var body in area.GetOverlappingBodies())
+            {
+                if (body is WorldItemEntity entity && entity.TryPickupByActor(_actor))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private Vector2 GetFacingDirection()
         {
             if (_actor == null)
@@ -129,6 +208,22 @@ namespace Kuros.Actors.Heroes
             }
 
             return _actor.FacingRight ? Vector2.Right : Vector2.Left;
+        }
+
+        private bool TryTriggerThrowState()
+        {
+            if (_actor?.StateMachine == null)
+            {
+                return false;
+            }
+
+            if (!_actor.StateMachine.HasState(ThrowStateName))
+            {
+                return false;
+            }
+
+            _actor.StateMachine.ChangeState(ThrowStateName);
+            return true;
         }
 
         private static T? FindChildComponent<T>(Node? root) where T : Node
@@ -159,4 +254,3 @@ namespace Kuros.Actors.Heroes
         }
     }
 }
-
