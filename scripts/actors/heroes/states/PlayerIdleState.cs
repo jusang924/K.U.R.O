@@ -51,7 +51,12 @@ namespace Kuros.Actors.Heroes.States
 				return;
 			}
 
-			// F键拾取物品
+			if (Input.IsActionJustPressed("take_up"))
+			{
+				ChangeState("PickUp");
+				return;
+			}
+			
 			if (Input.IsActionJustPressed("take_up"))
 			{
 				ChangeState("PickUp");

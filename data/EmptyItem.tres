@@ -10,4 +10,3 @@ Description = "空白道具，可以被任何道具覆盖"
 Category = "Empty"
 MaxStackSize = 1
 
-
