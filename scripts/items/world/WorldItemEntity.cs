@@ -384,6 +384,8 @@ namespace Kuros.Items.World
                         GD.Print($"[拾取] {accepted} x {ItemId} -> 左手槽位 {player.LeftHandSlotIndex + 1}");
                         GameLogger.Info(nameof(WorldItemEntity), $"{actor.Name} 将 {accepted} 个 {ItemId} 拾取到左手快捷栏槽位 {player.LeftHandSlotIndex + 1}。");
                         inventory.NotifyItemPicked(stack.Item);
+                        // 尝试显示「获得新物品」弹窗（仅当第一次获得该物品时显示）
+                        inventory.TryShowItemObtainedPopup(stack.Item);
                         // 同步更新左手物品显示
                         player.SyncLeftHandItemFromSlot();
                         player.UpdateHandItemVisual();

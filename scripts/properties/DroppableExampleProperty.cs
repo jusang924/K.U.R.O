@@ -85,6 +85,8 @@ public partial class DroppableExampleProperty : DroppablePickupProperty
                     {
                         GD.Print($"[拾取] {added} x {Item.DisplayName} -> 左手槽位 {player.LeftHandSlotIndex + 1}");
                         player.InventoryComponent.NotifyItemPicked(Item);
+                        // 尝试显示「获得新物品」弹窗（仅当第一次获得该物品时显示）
+                        player.InventoryComponent.TryShowItemObtainedPopup(Item);
                         // 同步更新左手物品显示
                         player.SyncLeftHandItemFromSlot();
                         player.UpdateHandItemVisual();

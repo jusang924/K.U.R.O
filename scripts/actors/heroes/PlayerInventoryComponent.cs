@@ -211,7 +211,7 @@ namespace Kuros.Actors.Heroes
             int totalAdded = amount - remaining;
             GD.Print($"AddItemSmart: Total added: {totalAdded} out of {amount}");
 
-            // 如果成功添加了物品且是第一次获得，标记为已获得
+            // 如果成功添加了物品且是第一次获得，标记为已获得并显示弹窗
             if (totalAdded > 0 && isFirstTime)
             {
                 MarkItemAsObtained(item);
@@ -226,6 +226,34 @@ namespace Kuros.Actors.Heroes
             return totalAdded;
         }
 
+        /// <summary>
+        /// 尝试显示获得物品弹窗（仅当第一次获得该物品时显示）
+        /// 供外部调用（如 WorldItemEntity 拾取到左手槽位时）
+        /// </summary>
+        /// <param name="item">获得的物品</param>
+        /// <returns>是否成功显示弹窗</returns>
+        public bool TryShowItemObtainedPopup(ItemDefinition item)
+        {
+            if (item == null)
+            {
+                return false;
+            }
+            
+            // 检查是否是第一次获得该物品
+            if (!IsFirstTimeObtaining(item))
+            {
+                GD.Print($"PlayerInventoryComponent: 物品 {item.DisplayName} 不是第一次获得，跳过弹窗");
+                return false;
+            }
+            
+            // 标记为已获得
+            MarkItemAsObtained(item);
+            
+            // 显示弹窗
+            ShowItemObtainedPopup(item);
+            return true;
+        }
+        
         /// <summary>
         /// 显示获得物品弹窗
         /// </summary>
@@ -521,3 +549,4 @@ namespace Kuros.Actors.Heroes
         }
     }
 }
+
