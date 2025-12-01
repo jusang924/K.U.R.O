@@ -459,8 +459,19 @@ public partial class SamplePlayer : GameActor, IPlayerStatsSource
 	/// <summary>
 	/// 尝试消费金币（如果金币足够）
 	/// </summary>
+	/// <param name="amount">要消费的金币数量，必须为非负数。</param>
+	/// <exception cref="ArgumentOutOfRangeException">当 <paramref name="amount"/> 为负数时抛出。</exception>
+	/// <remarks>
+	/// 若需要添加金币，请使用 <see cref="AddGold"/> 方法。
+	/// </remarks>
 	public bool TrySpendGold(int amount)
 	{
+		if (amount < 0)
+		{
+			throw new ArgumentOutOfRangeException(nameof(amount), amount,
+				"金币数量不能为负数。若需添加金币，请使用 AddGold 方法。");
+		}
+		
 		if (_gold >= amount)
 		{
 			_gold -= amount;

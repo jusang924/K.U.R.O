@@ -175,6 +175,18 @@ namespace Kuros.Items.World
 
             ApplyItemEffects(actor, ItemEffectTrigger.OnPickup);
 
+            // 检查是否为部分转移（地面仍有剩余物品）
+            if (Quantity > 0)
+            {
+                // 部分转移 - 发出信号但保持实体可交互
+                if (_lastTransferredItem != null && _lastTransferredAmount > 0)
+                {
+                    EmitSignal(SignalName.ItemTransferred, this, actor, _lastTransferredItem, _lastTransferredAmount);
+                }
+                return true;
+            }
+
+            // 完整转移 - 继续正常的拾取完成流程
             _isPicked = true;
             if (AutoDisableTriggerOnPickup)
             {
@@ -321,7 +333,7 @@ namespace Kuros.Items.World
                 GameLogger.Info(nameof(WorldItemEntity), $"{actor.Name} 仅拾取了 {accepted} 个 {ItemId}，剩余 {Quantity} 个保留在地面。");
                 RestoreTriggerArea();
                 _isPicked = false;
-                return false;
+                return true;
             }
 
             _lastTransferredItem = stack.Item;

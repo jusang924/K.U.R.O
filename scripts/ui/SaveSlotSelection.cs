@@ -109,6 +109,25 @@ namespace Kuros.UI
                 SaveTimeLabel = GetNodeOrNull<Label>("MenuPanel/VBoxContainer/ContentContainer/RightPanel/InfoContainer/SaveTimeLabel");
             }
 
+            // 驗證關鍵節點
+            if (SlotGrid == null)
+            {
+                GD.PrintErr("SaveSlotSelection: 關鍵節點 SlotGrid 未找到，UI 將無法正常運作。");
+                return;
+            }
+            if (BackButton == null)
+            {
+                GD.PrintErr("SaveSlotSelection: 關鍵節點 BackButton 未找到。");
+            }
+            if (SwitchModeButton == null)
+            {
+                GD.PrintErr("SaveSlotSelection: 關鍵節點 SwitchModeButton 未找到。");
+            }
+            if (TitleLabel == null)
+            {
+                GD.PrintErr("SaveSlotSelection: 關鍵節點 TitleLabel 未找到。");
+            }
+
             // 设置网格列数
             if (SlotGrid != null)
             {

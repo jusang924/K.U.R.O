@@ -17,6 +17,7 @@ namespace Kuros.Scenes
 		private ModeSelectionMenu? _modeSelectionMenu;
 		private SettingsMenu? _settingsMenu;
 		private SaveSlotSelection? _saveSlotSelection;
+		private LoadingTestManager? _loadingTestManager;
 
 		public override void _Ready()
 		{
@@ -308,13 +309,48 @@ namespace Kuros.Scenes
 		{
 			GD.Print("开始测试加载页面");
 			
-			// 创建加载测试管理器
-			var loadingTestManager = new LoadingTestManager();
-			loadingTestManager.Name = "LoadingTestManager";
-			GetTree().Root.AddChild(loadingTestManager);
+			// 如果已存在加载测试管理器，先停止并清理
+			CleanupLoadingTestManager();
+			
+			// 创建新的加载测试管理器
+			_loadingTestManager = new LoadingTestManager();
+			_loadingTestManager.Name = "LoadingTestManager";
+			
+			// 连接 TreeExited 信号，当节点被释放时清除引用
+			_loadingTestManager.TreeExited += OnLoadingTestManagerExited;
+			
+			GetTree().Root.AddChild(_loadingTestManager);
 			
 			// 开始加载测试
-			loadingTestManager.StartLoadingTest();
+			_loadingTestManager.StartLoadingTest();
+		}
+		
+		/// <summary>
+		/// 清理加载测试管理器
+		/// </summary>
+		private void CleanupLoadingTestManager()
+		{
+			if (_loadingTestManager != null && IsInstanceValid(_loadingTestManager))
+			{
+				// 断开信号连接
+				_loadingTestManager.TreeExited -= OnLoadingTestManagerExited;
+				
+				// 从场景树中移除并释放
+				if (_loadingTestManager.IsInsideTree())
+				{
+					_loadingTestManager.GetParent()?.RemoveChild(_loadingTestManager);
+				}
+				_loadingTestManager.QueueFree();
+			}
+			_loadingTestManager = null;
+		}
+		
+		/// <summary>
+		/// 当加载测试管理器被释放时的回调
+		/// </summary>
+		private void OnLoadingTestManagerExited()
+		{
+			_loadingTestManager = null;
 		}
 
 		private void OnSaveSlotSelected(int slotIndex)
@@ -356,6 +392,17 @@ namespace Kuros.Scenes
 		private void CleanupUI()
 		{
 			if (UIManager.Instance == null) return;
+
+			// 取消訂閱 _saveSlotSelection 事件以防止處理器洩漏
+			if (_saveSlotSelection != null && IsInstanceValid(_saveSlotSelection))
+			{
+				_saveSlotSelection.SlotSelected -= OnSaveSlotSelected;
+				_saveSlotSelection.BackRequested -= LoadMainMenu;
+				_saveSlotSelection.ModeSwitchRequested -= OnSaveSlotSelectionModeSwitchRequested;
+			}
+			
+			// 清理加载测试管理器
+			CleanupLoadingTestManager();
 
 			UIManager.Instance.ClearAllUI();
 			_mainMenu = null;

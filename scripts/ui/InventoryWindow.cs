@@ -2,6 +2,7 @@ using Godot;
 using Kuros.Systems.Inventory;
 using Kuros.Core;
 using Kuros.Managers;
+using Kuros.Items.World;
 
 namespace Kuros.UI
 {
@@ -15,6 +16,7 @@ namespace Kuros.UI
         [Export] public HBoxContainer QuickBarContainer { get; private set; } = null!;
         [Export] public Control TrashBin { get; private set; } = null!;
         [Export] public Label GoldLabel { get; private set; } = null!;
+        [Export] public ConfirmationDialog DeleteConfirmDialog { get; private set; } = null!;
 
         private const int InventorySlotCount = 16; // 4x4 网格
         private const int QuickBarSlotCount = 5;
@@ -35,6 +37,11 @@ namespace Kuros.UI
         // 精确换位状态
         private int _selectedSlotIndex = -1;
         private bool _isSelectedFromInventory = true;
+
+        // 待删除物品状态（用于确认对话框）
+        private int _pendingDeleteSlotIndex = -1;
+        private bool _pendingDeleteFromInventory = true;
+        private InventoryItemStack? _pendingDeleteStack;
 
         // 窗口状态
         private bool _isOpen = false;
@@ -85,6 +92,13 @@ namespace Kuros.UI
             if (TrashBin != null)
             {
                 TrashBin.GuiInput += _OnTrashBinGuiInput;
+            }
+
+            DeleteConfirmDialog ??= GetNodeOrNull<ConfirmationDialog>("DeleteConfirmDialog");
+            if (DeleteConfirmDialog != null)
+            {
+                DeleteConfirmDialog.Confirmed += OnDeleteConfirmed;
+                DeleteConfirmDialog.Canceled += OnDeleteCanceled;
             }
         }
 
@@ -219,7 +233,7 @@ namespace Kuros.UI
                 mouseEvent.ButtonIndex == MouseButton.Left && 
                 mouseEvent.Pressed)
             {
-                // 如果处于精确换位模式，销毁选中的物品
+                // 如果处于精确换位模式，显示确认对话框
                 if (_selectedSlotIndex >= 0)
                 {
                     var container = _isSelectedFromInventory ? _inventoryContainer : _quickBarContainer;
@@ -228,7 +242,8 @@ namespace Kuros.UI
                         var stack = container.GetStack(_selectedSlotIndex);
                         if (stack != null && !stack.IsEmpty)
                         {
-                            container.RemoveItemFromSlot(_selectedSlotIndex, stack.Quantity);
+                            // 保存待删除信息并显示确认对话框
+                            ShowDeleteConfirmDialog(_selectedSlotIndex, _isSelectedFromInventory, stack);
                         }
                     }
                     
@@ -341,11 +356,11 @@ namespace Kuros.UI
             // 检查是否拖拽到垃圾桶
             if (TrashBin != null && IsPointInControl(TrashBin, position))
             {
-                // 销毁物品
+                // 显示确认对话框
                 var container = _isDraggingFromInventory ? _inventoryContainer : _quickBarContainer;
-                if (container != null && _draggingStack != null)
+                if (container != null && _draggingStack != null && !_draggingStack.IsEmpty)
                 {
-                    container.RemoveItemFromSlot(_draggingSlotIndex, _draggingStack.Quantity);
+                    ShowDeleteConfirmDialog(_draggingSlotIndex, _isDraggingFromInventory, _draggingStack);
                 }
                 DestroyDragPreview();
                 _draggingSlotIndex = -1;
@@ -356,13 +371,10 @@ namespace Kuros.UI
             // 检查是否拖拽到界面外（丢弃物品）
             if (!IsPointInMainPanel(position))
             {
-                // 丢弃物品（这里可以扩展为在世界中生成掉落物）
-                var container = _isDraggingFromInventory ? _inventoryContainer : _quickBarContainer;
-                if (container != null && _draggingStack != null)
+                // 嘗試在世界中生成掉落物，如果失敗則顯示確認對話框
+                if (_draggingStack != null && !_draggingStack.IsEmpty)
                 {
-                    // TODO: 在世界中生成掉落物
-                    container.RemoveItemFromSlot(_draggingSlotIndex, _draggingStack.Quantity);
-                    GD.Print($"丢弃物品: {_draggingStack.Item.DisplayName} x{_draggingStack.Quantity}");
+                    TryDropItemToWorld(_draggingSlotIndex, _isDraggingFromInventory, _draggingStack);
                 }
                 DestroyDragPreview();
                 _draggingSlotIndex = -1;
@@ -521,6 +533,148 @@ namespace Kuros.UI
             container.SetStack(index2, stack1Copy);
         }
 
+        /// <summary>
+        /// 显示删除确认对话框
+        /// </summary>
+        private void ShowDeleteConfirmDialog(int slotIndex, bool isFromInventory, InventoryItemStack stack)
+        {
+            if (DeleteConfirmDialog == null) 
+            {
+                // 如果没有对话框，直接删除（向后兼容）
+                PerformDelete(slotIndex, isFromInventory, stack.Quantity);
+                return;
+            }
+
+            // 保存待删除信息
+            _pendingDeleteSlotIndex = slotIndex;
+            _pendingDeleteFromInventory = isFromInventory;
+            _pendingDeleteStack = stack;
+
+            // 更新对话框文本，显示物品名称和数量
+            string itemInfo = stack.Quantity > 1 
+                ? $"{stack.Item.DisplayName} x{stack.Quantity}" 
+                : stack.Item.DisplayName;
+            DeleteConfirmDialog.DialogText = $"确定要删除 [{itemInfo}] 吗？\n此操作无法撤销。";
+
+            // 显示对话框
+            DeleteConfirmDialog.PopupCentered();
+        }
+
+        /// <summary>
+        /// 确认删除回调
+        /// </summary>
+        private void OnDeleteConfirmed()
+        {
+            if (_pendingDeleteSlotIndex >= 0 && _pendingDeleteStack != null)
+            {
+                PerformDelete(_pendingDeleteSlotIndex, _pendingDeleteFromInventory, _pendingDeleteStack.Quantity);
+            }
+            ClearPendingDelete();
+        }
+
+        /// <summary>
+        /// 取消删除回调
+        /// </summary>
+        private void OnDeleteCanceled()
+        {
+            ClearPendingDelete();
+        }
+
+        /// <summary>
+        /// 执行删除操作
+        /// </summary>
+        private void PerformDelete(int slotIndex, bool isFromInventory, int quantity)
+        {
+            var container = isFromInventory ? _inventoryContainer : _quickBarContainer;
+            if (container != null)
+            {
+                container.RemoveItemFromSlot(slotIndex, quantity);
+                GD.Print($"已删除物品，槽位: {slotIndex}, 数量: {quantity}");
+            }
+        }
+
+        /// <summary>
+        /// 清除待删除状态
+        /// </summary>
+        private void ClearPendingDelete()
+        {
+            _pendingDeleteSlotIndex = -1;
+            _pendingDeleteStack = null;
+        }
+
+        /// <summary>
+        /// 在玩家位置附近生成世界掉落物
+        /// </summary>
+        /// <param name="stack">要掉落的物品堆疊</param>
+        /// <returns>如果生成成功返回 true，否則返回 false</returns>
+        private bool SpawnWorldDropAtPlayer(InventoryItemStack stack)
+        {
+            if (stack == null || stack.IsEmpty)
+            {
+                return false;
+            }
+
+            // 獲取玩家位置
+            var player = GetTree().GetFirstNodeInGroup("player") as Node2D;
+            if (player == null)
+            {
+                GD.PrintErr("無法找到玩家，無法生成世界掉落物");
+                return false;
+            }
+
+            // 在玩家前方稍微偏移的位置生成掉落物
+            var dropPosition = player.GlobalPosition + new Vector2(50, 0);
+
+            // 使用 WorldItemSpawner 生成掉落物
+            var entity = WorldItemSpawner.SpawnFromStack(this, stack, dropPosition);
+            if (entity != null)
+            {
+                // 給掉落物一個隨機的拋出速度
+                var random = new RandomNumberGenerator();
+                random.Randomize();
+                var throwVelocity = new Vector2(
+                    random.RandfRange(-100, 100),
+                    random.RandfRange(-150, -50)
+                );
+                entity.ApplyThrowImpulse(throwVelocity);
+                
+                GD.Print($"已丟棄物品至世界: {stack.Item.DisplayName} x{stack.Quantity}");
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// 嘗試丟棄物品到世界，如果失敗則顯示確認對話框
+        /// </summary>
+        private void TryDropItemToWorld(int slotIndex, bool isFromInventory, InventoryItemStack stack)
+        {
+            if (stack == null || stack.IsEmpty)
+            {
+                return;
+            }
+
+            var container = isFromInventory ? _inventoryContainer : _quickBarContainer;
+            if (container == null)
+            {
+                return;
+            }
+
+            // 嘗試在世界中生成掉落物
+            if (SpawnWorldDropAtPlayer(stack))
+            {
+                // 生成成功，從背包中移除物品
+                container.RemoveItemFromSlot(slotIndex, stack.Quantity);
+            }
+            else
+            {
+                // 生成失敗（例如沒有定義世界場景），顯示確認對話框讓玩家決定是否永久刪除
+                GD.Print($"無法生成世界掉落物，顯示刪除確認對話框");
+                ShowDeleteConfirmDialog(slotIndex, isFromInventory, stack);
+            }
+        }
+
         public void ShowWindow()
         {
             if (_isOpen) return;
@@ -619,6 +773,13 @@ namespace Kuros.UI
             _draggingStack = null;
             ClearAllSelections();
             _selectedSlotIndex = -1;
+            
+            // 清理待删除状态
+            ClearPendingDelete();
+            if (DeleteConfirmDialog != null && DeleteConfirmDialog.Visible)
+            {
+                DeleteConfirmDialog.Hide();
+            }
             
             // 断开玩家金币变化信号
             DisconnectPlayerGoldSignal();
@@ -742,15 +903,14 @@ namespace Kuros.UI
                 var globalPos = GetGlobalMousePosition();
                 if (!IsPointInMainPanel(globalPos))
                 {
-                    // 点击界面外，丢弃选中的物品
+                    // 点击界面外，嘗試丟棄選中的物品到世界
                     var container = _isSelectedFromInventory ? _inventoryContainer : _quickBarContainer;
                     if (container != null)
                     {
                         var stack = container.GetStack(_selectedSlotIndex);
                         if (stack != null && !stack.IsEmpty)
                         {
-                            // TODO: 在世界中生成掉落物
-                            container.RemoveItemFromSlot(_selectedSlotIndex, stack.Quantity);
+                            TryDropItemToWorld(_selectedSlotIndex, _isSelectedFromInventory, stack);
                         }
                     }
                     

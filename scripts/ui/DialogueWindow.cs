@@ -509,16 +509,12 @@ namespace Kuros.UI
 				ClearChoices();
 				_isDisplayingText = false;
 				
-				// 清理对话数据（在隐藏窗口之前）
-				_currentDialogue = null;
-				_currentEntry = null;
-				_currentEntryIndex = -1;
-				
-				// 立即清除输入状态，防止Space键传播到玩家角色
-				Input.ActionRelease("attack");
-				Input.ActionRelease("ui_accept");
-				
-				// 隐藏窗口
+			// 清理对话数据（在隐藏窗口之前）
+			_currentDialogue = null;
+			_currentEntry = null;
+			_currentEntryIndex = -1;
+			
+			// 隐藏窗口
 				HideWindow();
 				
 				// 发送结束信号（必须在清理数据之后，但在隐藏窗口之后）
@@ -885,14 +881,6 @@ namespace Kuros.UI
 			{
 				// 文本已显示完成，继续到下一句
 				OnContinueButtonPressed();
-				
-				// 如果对话已结束，立即清除输入状态，防止Space键传播到玩家角色
-				if (!IsDialogueActive())
-				{
-					// 立即清除输入状态
-					Input.ActionRelease("attack");
-					Input.ActionRelease("ui_accept");
-				}
 			}
 		}
 	}

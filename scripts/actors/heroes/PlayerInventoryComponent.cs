@@ -127,6 +127,21 @@ namespace Kuros.Actors.Heroes
         /// </summary>
         public int AddItemSmart(ItemDefinition item, int amount, bool showPopupIfFirstTime = true)
         {
+            // 参数验证：检查 item 是否为 null
+            if (item == null)
+            {
+                GameLogger.Error(nameof(PlayerInventoryComponent), "AddItemSmart: item is null, cannot add null item to inventory.");
+                return 0;
+            }
+
+            // 参数验证：检查 amount 是否为正数
+            if (amount <= 0)
+            {
+                GameLogger.Warn(nameof(PlayerInventoryComponent), $"AddItemSmart: amount ({amount}) is not positive for item '{item.DisplayName}' (ID: {item.ItemId}), nothing to add.");
+                return 0;
+            }
+
+            // 确保 remaining 从已验证的正数 amount 初始化
             int remaining = amount;
             bool isFirstTime = IsFirstTimeObtaining(item);
 

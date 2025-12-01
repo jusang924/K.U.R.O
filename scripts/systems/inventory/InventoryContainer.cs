@@ -262,6 +262,7 @@ namespace Kuros.Systems.Inventory
         public int RemoveItemFromSlot(int slotIndex, int amount)
         {
             if (slotIndex < 0 || slotIndex >= SlotCount || amount <= 0) return 0;
+            EnsureCapacity();
 
             var stack = _slots[slotIndex];
             if (stack == null || stack.IsEmpty) return 0;
